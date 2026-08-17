@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<style>
+
+body {
+    margin: 0;
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    background: transparent;
+}
+
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+thead {
+    background: #f8f9fa;
+}
+
+th {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+}
+
+td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #eeeeee;
+    color: #212529;
+}
+
+tbody tr {
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+tbody tr:hover {
+    background: #f5f7fa;
+}
+
+.checkbox-cell {
+    width: 40px;
+    text-align: center;
+}
+
+input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+
+/* ============================================================
+   Status badges
+   ============================================================ */
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-completed {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.status-processing {
+    background: #ffedd5;
+    color: #c2410c;
+}
+
+.status-failed {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.status-queued {
+    background: #e0e7ff;
+    color: #4338ca;
+}
+
+
+/* ============================================================
+   Download button
+   ============================================================ */
+
+.toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+.download-button {
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    background: #2563eb;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.download-button:hover {
+    background: #1d4ed8;
+}
+
+.download-button:disabled {
+    background: #adb5bd;
+    cursor: not-allowed;
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<div class="table-container">
+
+<table>
+
+<thead>
+
+<tr>
+
+<th class="checkbox-cell">
+    <input
+        type="checkbox"
+        id="select-all"
+    >
+</th>
+
+<th>Filename</th>
+
+<th>UAV ID</th>
+
+<th>Safe Clearance Distance (m)</th>
+
+<th>Clearance Height (m)</th>
+
+<th>Inspection Date Time</th>
+
+<th>Status</th>
+
+</tr>
+
+</thead>
+
+
+<tbody id="table-body">
+
+</tbody>
+
+</table>
+
+</div>
+
+
+<div class="toolbar">
+
+<button
+    id="download-button"
+    class="download-button"
+    disabled
+>
+    Download Selected
+</button>
+
+</div>
+
+
+<script>
+
+
+/* ============================================================
+   Streamlit component communication
+   ============================================================ */
+
+function sendMessageToStreamlitClient(type, data) {
+
+    const outData = Object.assign({
+        isStreamlitMessage: true,
+        type: type,
+    }, data);
+
+    window.parent.postMessage(
+        outData,
+        "*"
+    );
+}
+
+
+function setComponentValue(value) {
+
+    sendMessageToStreamlitClient(
+        "streamlit:setComponentValue",
+        {
+            value: value,
+        }
+    );
+}
+
+
+/* ============================================================
+   Receive data from Streamlit
+   ============================================================ */
+
+function onDataFromPython(event) {
+
+    if (
+        event.data.type !==
+        "streamlit:render"
+    ) {
+        return;
+    }
+
+    const data =
+        event.data.args.data;
+
+    renderTable(data);
+}
+
+
+window.addEventListener(
+    "message",
+    onDataFromPython
+);
+
+
+/* Tell Streamlit iframe is ready */
+
+sendMessageToStreamlitClient(
+    "streamlit:componentReady",
+    {
+        apiVersion: 1
+    }
+);
+
+
+/* ============================================================
+   Render table
+   ============================================================ */
+
+function renderTable(data) {
+
+    const tbody =
+        document.getElementById(
+            "table-body"
+        );
+
+    tbody.innerHTML = "";
+
+    data.forEach(
+        (row, index) => {
+
+            const tr =
+                document.createElement(
+                    "tr"
+                );
+
+
+            /* Checkbox */
+
+            const checkboxTd =
+                document.createElement(
+                    "td"
+                );
+
+            checkboxTd.className =
+                "checkbox-cell";
+
+
+            const checkbox =
+                document.createElement(
+                    "input"
+                );
+
+            checkbox.type =
+                "checkbox";
+
+
+            checkbox.dataset.index =
+                index;
+
+
+            checkbox.addEventListener(
+                "click",
+                function(event) {
+
+                    event.stopPropagation();
+
+                    updateDownloadButton();
+
+                }
+            );
+
+
+            checkboxTd.appendChild(
+                checkbox
+            );
+
+            tr.appendChild(
+                checkboxTd
+            );
+
+
+            /* Filename */
+
+            addCell(
+                tr,
+                row["Filename"]
+            );
+
+
+            /* UAV ID */
+
+            addCell(
+                tr,
+                row["UAV ID"]
+            );
+
+
+            /* Clearance distance */
+
+            addCell(
+                tr,
+                row[
+                    "Safe Clearance Distance"
+                ]
+            );
+
+
+            /* Clearance height */
+
+            addCell(
+                tr,
+                row[
+                    "Clearance Height"
+                ]
+            );
+
+
+            /* Date */
+
+            addCell(
+                tr,
+                row[
+                    "Inspection Date Time"
+                ]
+            );
+
+
+            /* Status */
+
+            const statusTd =
+                document.createElement(
+                    "td"
+                );
+
+            const badge =
+                document.createElement(
+                    "span"
+                );
+
+            badge.className =
+                "status-badge " +
+                getStatusClass(
+                    row["Status"]
+                );
+
+            badge.textContent =
+                row["Status"];
+
+            statusTd.appendChild(
+                badge
+            );
+
+            tr.appendChild(
+                statusTd
+            );
+
+
+            /* Row click */
+
+            tr.addEventListener(
+                "click",
+                function() {
+
+                    setComponentValue({
+
+                        action: "preview",
+
+                        row_index: index
+
+                    });
+
+                }
+            );
+
+
+            tbody.appendChild(
+                tr
+            );
+
+        }
+    );
+
+
+    updateDownloadButton();
+
+}
+
+
+/* ============================================================
+   Helper functions
+   ============================================================ */
+
+function addCell(
+    row,
+    value
+) {
+
+    const td =
+        document.createElement(
+            "td"
+        );
+
+    td.textContent =
+        value ?? "";
+
+    row.appendChild(
+        td
+    );
+
+}
+
+
+function getStatusClass(
+    status
+) {
+
+    switch (
+        status.toLowerCase()
+    ) {
+
+        case "completed":
+            return "status-completed";
+
+        case "processing":
+            return "status-processing";
+
+        case "failed":
+            return "status-failed";
+
+        case "queued":
+            return "status-queued";
+
+        default:
+            return "";
+
+    }
+
+}
+
+
+/* ============================================================
+   Selected rows
+   ============================================================ */
+
+function getSelectedRows() {
+
+    const checkboxes =
+        document.querySelectorAll(
+            'input[type="checkbox"][data-index]'
+        );
+
+    const selected = [];
+
+    checkboxes.forEach(
+        checkbox => {
+
+            if (
+                checkbox.checked
+            ) {
+
+                selected.push(
+                    Number(
+                        checkbox.dataset.index
+                    )
+                );
+
+            }
+
+        }
+    );
+
+    return selected;
+
+}
+
+
+/* ============================================================
+   Download button
+   ============================================================ */
+
+function updateDownloadButton() {
+
+    const selected =
+        getSelectedRows();
+
+    const button =
+        document.getElementById(
+            "download-button"
+        );
+
+    button.disabled =
+        selected.length === 0;
+
+    if (
+        selected.length > 0
+    ) {
+
+        button.textContent =
+            `Download Selected (${selected.length})`;
+
+    } else {
+
+        button.textContent =
+            "Download Selected";
+
+    }
+
+}
+
+
+document
+    .getElementById(
+        "download-button"
+    )
+    .addEventListener(
+        "click",
+        function() {
+
+            const selected =
+                getSelectedRows();
+
+            setComponentValue({
+
+                action: "download",
+
+                selected_rows:
+                    selected
+
+            });
+
+        }
+    );
+
+
+/* ============================================================
+   Select all
+   ============================================================ */
+
+document
+    .getElementById(
+        "select-all"
+    )
+    .addEventListener(
+        "change",
+        function() {
+
+            const checked =
+                this.checked;
+
+            const checkboxes =
+                document.querySelectorAll(
+                    'input[type="checkbox"][data-index]'
+                );
+
+            checkboxes.forEach(
+                checkbox => {
+
+                    checkbox.checked =
+                        checked;
+
+                }
+            );
+
+            updateDownloadButton();
+
+        }
+    );
+
+</script>
+
+</body>
+
+</html>
